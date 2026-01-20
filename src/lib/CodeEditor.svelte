@@ -42,6 +42,11 @@
 		let currentPos = 0;
 
 		for (const token of sortedTokens) {
+			// Skip tokens that overlap with already processed text
+			if (token.start < currentPos) {
+				continue;
+			}
+
 			// Add any text before this token
 			if (token.start > currentPos) {
 				result += escapeHtml(text.slice(currentPos, token.start));
