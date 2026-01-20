@@ -61,10 +61,13 @@
 		let currentPos = 0;
 
 		for (const token of sortedTokens) {
-			// Skip tokens that overlap with already processed text
-			// This handles both tokens starting before current position
-			// and tokens that would extend into already processed regions
-			if (token.start < currentPos || token.end <= currentPos) {
+			// Skip invalid tokens (end before or at start)
+			if (token.end <= token.start) {
+				continue;
+			}
+
+			// Skip tokens that start before already processed text
+			if (token.start < currentPos) {
 				continue;
 			}
 
