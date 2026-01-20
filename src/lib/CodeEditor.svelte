@@ -91,26 +91,28 @@
 		onValueChange(value);
 	}
 
+	/** @type {HTMLDivElement | null} */
+	let highlightOverlay = $state(null);
+
 	/**
 	 * Synchronize scroll between textarea and highlight overlay
 	 * @param {Event} e
 	 */
 	function handleScroll(e) {
 		const target = /** @type {HTMLTextAreaElement} */ (e.target);
-		const highlightEl = target.parentElement?.querySelector('.highlight-overlay');
-		if (highlightEl) {
-			highlightEl.scrollTop = target.scrollTop;
-			highlightEl.scrollLeft = target.scrollLeft;
+		if (highlightOverlay) {
+			highlightOverlay.scrollTop = target.scrollTop;
+			highlightOverlay.scrollLeft = target.scrollLeft;
 		}
 	}
 </script>
 
 <div class="code-editor">
-	<div class="highlight-overlay" aria-hidden="true">
+	<div class="highlight-overlay" aria-hidden="true" bind:this={highlightOverlay}>
 		<pre><code>{@html renderHighlightedCode(value, tokens)}</code></pre>
 	</div>
 	<textarea
-		bind:value={value}
+		value={value}
 		oninput={handleInput}
 		onscroll={handleScroll}
 		spellcheck="false"
