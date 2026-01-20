@@ -24,6 +24,22 @@
 		tokens = lspPayload;
 	});
 
+	// Whitelist of allowed token types for security
+	const ALLOWED_TOKEN_TYPES = new Set([
+		'keyword', 'string', 'integer', 'number', 'comment', 'function',
+		'variable', 'type', 'operator', 'punctuation', 'property',
+		'class', 'identifier'
+	]);
+
+	/**
+	 * Sanitize token type to prevent CSS injection
+	 * @param {string} type
+	 * @returns {string}
+	 */
+	function sanitizeTokenType(type) {
+		return ALLOWED_TOKEN_TYPES.has(type) ? type : 'identifier';
+	}
+
 	/**
 	 * Renders the code with syntax highlighting based on LSP tokens
 	 * @param {string} text
@@ -35,15 +51,20 @@
 			return escapeHtml(text);
 		}
 
-		// Sort tokens by start position
-		const sortedTokens = [...tokenList].sort((a, b) => a.start - b.start);
+		// Sort tokens by start position, then by end position (shorter tokens first)
+		const sortedTokens = [...tokenList].sort((a, b) => {
+			if (a.start !== b.start) return a.start - b.start;
+			return a.end - b.end;
+		});
 		
 		let result = '';
 		let currentPos = 0;
 
 		for (const token of sortedTokens) {
 			// Skip tokens that overlap with already processed text
-			if (token.start < currentPos) {
+			// This handles both tokens starting before current position
+			// and tokens that would extend into already processed regions
+			if (token.start < currentPos || token.end <= currentPos) {
 				continue;
 			}
 
@@ -52,9 +73,10 @@
 				result += escapeHtml(text.slice(currentPos, token.start));
 			}
 
-			// Add the highlighted token
+			// Add the highlighted token with sanitized type
 			const tokenText = text.slice(token.start, token.end);
-			result += `<span class="token-${token.type}">${escapeHtml(tokenText)}</span>`;
+			const safeType = sanitizeTokenType(token.type);
+			result += `<span class="token-${safeType}">${escapeHtml(tokenText)}</span>`;
 			
 			currentPos = token.end;
 		}

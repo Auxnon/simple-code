@@ -58,11 +58,15 @@ console.log(message);`);
 		customLspJson = JSON.stringify(lspTokens, null, 2);
 	});
 
+	let errorMessage = $state('');
+
 	function updateTokens() {
 		try {
-			lspTokens = JSON.parse(customLspJson);
+			const parsed = JSON.parse(customLspJson);
+			lspTokens = parsed;
+			errorMessage = '';
 		} catch (e) {
-			console.error('Invalid JSON:', e);
+			errorMessage = `Invalid JSON: ${e instanceof Error ? e.message : 'Unknown error'}`;
 		}
 	}
 
@@ -100,6 +104,9 @@ console.log(message);`);
 				class="json-input"
 				placeholder="Enter LSP JSON payload..."
 			></textarea>
+			{#if errorMessage}
+				<div class="error-message">{errorMessage}</div>
+			{/if}
 			<button onclick={updateTokens}>Update Highlighting</button>
 		</div>
 
@@ -209,6 +216,16 @@ console.log(message);`);
 		font-size: 0.9em;
 	}
 
+	.error-message {
+		color: #e53e3e;
+		background: #fff5f5;
+		border: 1px solid #fc8181;
+		padding: 12px;
+		border-radius: 6px;
+		margin-bottom: 12px;
+		font-size: 0.9rem;
+	}
+
 	.json-input {
 		width: 100%;
 		min-height: 200px;
@@ -291,6 +308,12 @@ console.log(message);`);
 
 		.json-input:focus {
 			border-color: #4299e1;
+		}
+
+		.error-message {
+			color: #fc8181;
+			background: #2d3748;
+			border-color: #e53e3e;
 		}
 
 		.hint code {
