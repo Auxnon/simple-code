@@ -5,7 +5,7 @@
      * @property {number} end - End position in the text
      * @property {string} type - Token type (keyword, integer, string, etc.)
      */
-    import init, { run, lsp } from "silt-lua";
+    
     import { onMount } from "svelte";
 
     /** @type {string} */
@@ -21,9 +21,21 @@
         onValueChange = (/** @type {string} */ newValue) => {},
     } = $props();
 
+    let wasmInitialized = $state(false);
+    let debounceTimer = null;
+    let siltInit = null;
+    let siltRun = null;
+    let siltLsp = null;
+
+    // Token type legend from silt-lua: index+1 maps to type
+    // mapping 0 = no styling
+    const TOKEN_TYPE_LEGEND = ['keyword', 'operator', 'number', 'bool', 'nil', 'string', 'comment'];
+
     $effect(() => {
         value = initialValue;
-        tokens = lspPayload;
+        if (lspPayload.length > 0) {
+            tokens = lspPayload;
+        }
     });
 
     // Whitelist of allowed token types for security
@@ -41,16 +53,90 @@
         "property",
         "class",
         "identifier",
+        "bool",
+        "nil",
     ]);
 
     onMount(async () => {
+        // Dynamically import silt-lua if available
         try {
-            await init();
-    console.log(lsp("a=5", false));
+            const siltModule = await import("silt-lua");
+            siltInit = siltModule.init;
+            siltRun = siltModule.run;
+            siltLsp = siltModule.lsp;
+        } catch (e) {
+            console.warn("silt-lua not available:", e);
+            return;
+        }
+
+        try {
+            await siltInit();
+            wasmInitialized = true;
+            console.log("WASM initialized successfully");
+            // Process initial value if present
+            if (value) {
+                processLSP(value);
+            }
         } catch (e) {
             console.error("WASM failed to load:", e);
         }
     });
+
+    /**
+     * Convert silt LSP output to token format
+     * Silt format: array of [index, length, mapping]
+     * mapping 0 = no styling, 1-7 = keyword, op, number, bool, nil, string, comment
+     * @param {string} text
+     */
+    function processLSP(text) {
+        if (!wasmInitialized || !siltLsp) return;
+        
+        try {
+            const result = siltLsp(text, false);
+            if (!result || !result.map) {
+                console.warn("LSP returned no data");
+                return;
+            }
+
+            const newTokens = [];
+            
+            // result.map is an array of arrays: [[index, length, mapping], ...]
+            for (const tokenData of result.map) {
+                const [index, length, mapping] = tokenData;
+                
+                // Skip non-styled tokens (mapping 0)
+                if (mapping === 0) continue;
+                
+                // Convert mapping to token type (mapping is 1-indexed)
+                const typeIndex = mapping - 1;
+                const tokenType = TOKEN_TYPE_LEGEND[typeIndex] || 'identifier';
+                
+                newTokens.push({
+                    start: index,
+                    end: index + length,
+                    type: tokenType
+                });
+            }
+            
+            tokens = newTokens;
+        } catch (e) {
+            console.error("LSP processing failed:", e);
+        }
+    }
+
+    /**
+     * Debounced LSP processing
+     * @param {string} text
+     */
+    function debouncedProcessLSP(text) {
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
+        
+        debounceTimer = setTimeout(() => {
+            processLSP(text);
+        }, 300); // 300ms debounce
+    }
 
     /**
      * Sanitize token type to prevent CSS injection
@@ -135,6 +221,9 @@
         const target = /** @type {HTMLTextAreaElement} */ (e.target);
         value = target.value;
         onValueChange(value);
+        
+        // Run LSP with debounce on every change
+        debouncedProcessLSP(value);
     }
 
     /** @type {HTMLDivElement | null} */
@@ -284,6 +373,16 @@
         color: #24292e;
     }
 
+    :global(.token-bool) {
+        color: #005cc5;
+        font-weight: 600;
+    }
+
+    :global(.token-nil) {
+        color: #6a737d;
+        font-weight: 600;
+    }
+
     /* Dark mode friendly colors */
     @media (prefers-color-scheme: dark) {
         textarea {
@@ -342,6 +441,14 @@
 
         :global(.token-identifier) {
             color: #d4d4d4;
+        }
+
+        :global(.token-bool) {
+            color: #4ec9b0;
+        }
+
+        :global(.token-nil) {
+            color: #9cdcfe;
         }
     }
 </style>
